@@ -1,6 +1,6 @@
-/*! backbone.routefilter - v0.2.0 - 2014-05-06
+/*! backbone.routefilter - v0.2.1 - 2015-04-28
 * https://github.com/boazsender/backbone.routefilter
-* Copyright (c) 2014 Boaz Sender; Licensed MIT */
+* Copyright (c) 2015 Boaz Sender; Licensed MIT */
 
 (function(factory) {
   if (typeof define === 'function' && define.amd) {
@@ -48,42 +48,8 @@
         callback = this[ name ];
       }
 
-      // Create a new callback to replace the original callback that calls
-      // the before and after filters as well as the original callback
-      // internally.
-      var wrappedCallback = _.bind( function() {
-
-        // Call the before filter and if it returns false, run the
-        // route's original callback, and after filter. This allows
-        // the user to return false from within the before filter
-        // to prevent the original route callback and after
-        // filter from running.
-        var callbackArgs = [ route, _.toArray(arguments) ];
-        var beforeCallback;
-
-        if ( _.isFunction(this.before) ) {
-
-          // If the before filter is just a single function, then call
-          // it with the arguments.
-          beforeCallback = this.before;
-        } else if ( typeof this.before[route] !== "undefined" ) {
-
-          // otherwise, find the appropriate callback for the route name
-          // and call that.
-          beforeCallback = this.before[route];
-        } else {
-
-          // otherwise, if we have a hash of routes, but no before callback
-          // for this route, just use a nop function.
-          beforeCallback = nop;
-        }
-
-        // If the before callback fails during its execusion (by returning)
-        // false, then do not proceed with the route triggering.
-        if ( beforeCallback.apply(this, callbackArgs) === false ) {
-          return;
-        }
-
+      // Create a new callback that calls the original callback and the after method
+      var wrappedInnerCallback = _.bind(function() {
         // If the callback exists, then call it. This means that the before
         // and after filters will be called whether or not an actual
         // callback function is supplied to handle a given route.
@@ -111,9 +77,55 @@
           afterCallback = nop;
         }
 
+        var callbackArgs = [ route, _.toArray(arguments) ];
+
         // Call the after filter.
         afterCallback.apply( this, callbackArgs );
 
+      }, this);
+
+      // Create a new callback that calls the before method and
+      // wrappedInnerCallback if the before method resolves the promise
+      // or doesn't return false
+      var wrappedCallback = _.bind( function() {
+        // Call the before filter and if it returns false, run the
+        // route's original callback, and after filter. This allows
+        // the user to return false from within the before filter
+        // to prevent the original route callback and after
+        // filter from running.
+        var beforeCallback;
+
+        if ( _.isFunction(this.before) ) {
+
+          // If the before filter is just a single function, then call
+          // it with the arguments.
+          beforeCallback = this.before;
+        } else if ( typeof this.before[route] !== "undefined" ) {
+
+          // otherwise, find the appropriate callback for the route name
+          // and call that.
+          beforeCallback = this.before[route];
+        } else {
+
+          // otherwise, if we have a hash of routes, but no before callback
+          // for this route, just use a nop function.
+          beforeCallback = nop;
+        }
+
+        var callbackArgs = [ route, _.toArray(arguments) ];
+
+        var response = beforeCallback.apply(this, callbackArgs);
+
+        // If the before callback returns a promise, wait for it to resolve/reject
+        // Continue with the original callback and after if the before promise resolves
+        if (window.Promise && response instanceof window.Promise) {
+          response.then(function() {
+            wrappedInnerCallback.apply(this, arguments);
+          });
+        } else if (response !== false) {
+          // If before returns anything that's not a promise or false, continue the execution
+          wrappedInnerCallback.apply(this, arguments);
+        }
       }, this);
 
       // Call our original route, replacing the callback that was originally
