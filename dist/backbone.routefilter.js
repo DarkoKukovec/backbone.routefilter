@@ -1,4 +1,4 @@
-/*! backbone.routefilter - v0.2.1 - 2015-04-28
+/*! backbone.routefilter - v0.2.1 - 2015-10-10
 * https://github.com/boazsender/backbone.routefilter
 * Copyright (c) 2015 Boaz Sender; Licensed MIT */
 
